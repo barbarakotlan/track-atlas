@@ -1,5 +1,7 @@
 import faiss
+import json
 import numpy as np
+from pathlib import Path
 
 class VectorStore:
 
@@ -48,3 +50,28 @@ class VectorStore:
                 results.append(self.documents[index])
 
         return results
+
+    def save(self, directory):
+        """Saves the FAISS index and documents to disk.
+        Args:
+            directory (str): The directory where the index and documents will be saved.
+        """
+        directory_path = Path(directory)
+        directory_path.mkdir(parents=True, exist_ok=True)
+
+        faiss.write_index(self.index, str(directory_path / "faiss.index"))
+
+        with open(directory_path / "documents.json", "w") as f:
+            json.dump(self.documents, f)
+
+    def load(self, directory):
+        """Loads the FAISS index and documents from disk.
+        Args:
+            directory (str): The directory where the index and documents are saved.
+        """
+        directory_path = Path(directory)
+
+        self.index = faiss.read_index(str(directory_path / "faiss.index"))
+
+        with open(directory_path / "documents.json", "r") as f:
+            self.documents = json.load(f)

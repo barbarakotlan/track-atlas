@@ -4,6 +4,7 @@ from generator import Generator
 from faiss_store import VectorStore
 
 vector_store = VectorStore(dimension=384)
+vector_store.load("storage")
 
 retriever = Retriever(vector_store)
 generator = Generator()
