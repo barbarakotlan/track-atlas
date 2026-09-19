@@ -18,7 +18,10 @@ def build_pipeline():
     Returns:
         tuple: The pipeline and the number of indexed chunks.
     """
-    vector_store = VectorStore(dimension=settings.embedding_dimension)
+    vector_store = VectorStore(
+        dimension=settings.embedding_dimension,
+        embedding_model=settings.embedding_model,
+    )
     vector_store.load(settings.storage_dir)
 
     pipeline = RAGPipeline(Retriever(vector_store), Generator())
@@ -29,7 +32,7 @@ def build_pipeline():
 async def lifespan(app: FastAPI):
     try:
         state["rag"], state["chunks"] = build_pipeline()
-    except FileNotFoundError as error:
+    except (FileNotFoundError, ValueError) as error:
         state["error"] = str(error)
     yield
 
@@ -64,7 +67,7 @@ class AskResponse(BaseModel):
 @app.get("/health")
 async def health():
     return {
-        "status": "ok" if state["rag"] else "index_missing",
+        "status": "ok" if state["rag"] and state["chunks"] else "index_missing",
         "indexed_chunks": state["chunks"],
         "model": settings.llm_model,
         "error": state["error"],
@@ -72,7 +75,7 @@ async def health():
 
 
 @app.post("/ask", response_model=AskResponse)
-async def ask(request: AskRequest):
+def ask(request: AskRequest):
     if not state["rag"]:
         raise HTTPException(status_code=503, detail=state["error"] or "Index not loaded.")
 

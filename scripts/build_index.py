@@ -4,7 +4,7 @@ from pathlib import Path
 
 from config import settings
 from scripts.chunker import chunk_document
-from scripts.embedder import create_embeddings
+from scripts.embedder import create_embeddings, get_model
 from scripts.faiss_store import VectorStore
 from scripts.load_documents import load_all_documents
 
@@ -33,9 +33,17 @@ def build_index(knowledge_base_path, storage_path):
             )
         )
 
+    if not chunks:
+        raise ValueError(
+            f"The documents in {knowledge_base_path} contained no extractable text."
+        )
+
     embedded_chunks = create_embeddings(chunks)
 
-    vector_store = VectorStore(dimension=settings.embedding_dimension)
+    vector_store = VectorStore(
+        dimension=get_model().get_sentence_embedding_dimension(),
+        embedding_model=settings.embedding_model,
+    )
     vector_store.add_documents(embedded_chunks)
     vector_store.save(storage_path)
 

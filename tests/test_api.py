@@ -57,6 +57,12 @@ def test_ask_returns_answer_with_sources(client):
     }
 
 
+def test_health_reports_an_empty_index_as_missing(client):
+    main.state.update({"rag": FakePipeline(), "chunks": 0, "error": None})
+
+    assert client.get("/health").json()["status"] == "index_missing"
+
+
 def test_ask_without_index_returns_503(client):
     main.state.update({"rag": None, "chunks": 0, "error": "No index found."})
 
