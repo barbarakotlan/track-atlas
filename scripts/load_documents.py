@@ -1,11 +1,12 @@
 """
 Load documents from the knowledge base directory
 """
-from docx import Document
-from pathlib import Path
-from pypdf import PdfReader
 import re
 import unicodedata
+
+from docx import Document
+from pypdf import PdfReader
+
 
 def scan_directory(directory_path):
     """Scans the given directory and returns a list of file paths for all files in the directory and its subdirectories.

@@ -1,7 +1,12 @@
-import faiss
 import json
-import numpy as np
 from pathlib import Path
+
+import faiss
+import numpy as np
+
+INDEX_FILE = "faiss.index"
+DOCUMENTS_FILE = "documents.json"
+
 
 class VectorStore:
 
@@ -10,8 +15,12 @@ class VectorStore:
         Args:
             dimension (int): The dimension of the embeddings.
         """
+        self.dimension = dimension
         self.index = faiss.IndexFlatIP(dimension)
         self.documents = []
+
+    def __len__(self):
+        return len(self.documents)
 
     def add_documents(self, chunks):
         """Adds embedded chunks to the vector store.
@@ -35,19 +44,28 @@ class VectorStore:
             query_embedding (list): The embedding of the query.
             k (int): The number of similar chunks to return.
         Returns:
-            list: A list of the most similar chunks.
+            list: The most similar chunks, each with its similarity score.
         """
+        if not self.documents:
+            return []
+
         query = np.array(
             [query_embedding],
             dtype='float32'
         )
 
-        distances, indices = self.index.search(query, k)
+        scores, indices = self.index.search(query, min(k, len(self.documents)))
         results = []
 
-        for index in indices[0]:
-            if index != -1:
-                results.append(self.documents[index])
+        for score, index in zip(scores[0], indices[0]):
+            if index == -1:
+                continue
+            document = self.documents[index]
+            results.append({
+                "text": document["text"],
+                "metadata": document["metadata"],
+                "score": float(score),
+            })
 
         return results
 
@@ -59,9 +77,9 @@ class VectorStore:
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
 
-        faiss.write_index(self.index, str(directory_path / "faiss.index"))
+        faiss.write_index(self.index, str(directory_path / INDEX_FILE))
 
-        with open(directory_path / "documents.json", "w") as f:
+        with open(directory_path / DOCUMENTS_FILE, "w") as f:
             json.dump(self.documents, f)
 
     def load(self, directory):
@@ -71,7 +89,28 @@ class VectorStore:
         """
         directory_path = Path(directory)
 
-        self.index = faiss.read_index(str(directory_path / "faiss.index"))
+        if not self.exists(directory_path):
+            raise FileNotFoundError(
+                f"No index found in {directory_path.resolve()}. "
+                "Run `python -m scripts.build_index` first."
+            )
 
-        with open(directory_path / "documents.json", "r") as f:
+        self.index = faiss.read_index(str(directory_path / INDEX_FILE))
+        self.dimension = self.index.d
+
+        with open(directory_path / DOCUMENTS_FILE, "r") as f:
             self.documents = json.load(f)
+
+    @staticmethod
+    def exists(directory):
+        """Checks whether a saved index exists in the given directory.
+        Args:
+            directory (str | Path): The directory to check.
+        Returns:
+            bool: True when both the index and the documents file are present.
+        """
+        directory_path = Path(directory)
+        return (
+            (directory_path / INDEX_FILE).is_file()
+            and (directory_path / DOCUMENTS_FILE).is_file()
+        )
