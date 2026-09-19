@@ -226,3 +226,9 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Track Atlas vector index
+storage/
+
+# Frontend source (the Python packaging template above ignores lib/)
+!frontend/app/lib/

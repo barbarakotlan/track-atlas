@@ -1,12 +1,22 @@
 import ollama
 
+from config import settings
+
+
+class GeneratorError(RuntimeError):
+    """Raised when the language model cannot produce an answer."""
+
+
 class Generator:
-    def __init__(self, model_name="llama3.2:3b"):
-        """Initializes the Generator with a specified model name and an OpenAI client.
+    def __init__(self, model_name=None, host=None):
+        """Initializes the Generator with a specified model name and an Ollama client.
         Args:
-            model_name (str): The name of the model to be used for generating answers.
+            model_name (str | None): The model used for generating answers.
+            host (str | None): The Ollama host to connect to.
         """
-        self.model = model_name
+        self.model = model_name or settings.llm_model
+        self.host = host or settings.ollama_host
+        self.client = ollama.Client(host=self.host)
 
     def create_prompt(self, question, chunks):
         """Creates a prompt for the model based on the question and provided context chunks.
@@ -15,9 +25,13 @@ class Generator:
             chunks (list): A list of chunk dictionaries, each containing text and metadata.
         Returns:
             str: A formatted prompt string that includes the context and the question."""
-        context = "\n\n".join([chunk["text"] for chunk in chunks])
+        context = "\n\n".join(
+            f"[{index}] Source: {chunk['metadata'].get('file_name', 'unknown')}\n{chunk['text']}"
+            for index, chunk in enumerate(chunks, start=1)
+        )
         prompt = f"""You are Track Atlas, an expert assistant for track and field.
         Answer the question using only the provided context.
+        Cite the sources you used with their bracketed numbers, for example [1].
         If the answer is not in the context, say you do not know.
 
         Context:
@@ -38,14 +52,24 @@ class Generator:
         """
         prompt = self.create_prompt(question, chunks)
 
-        response = ollama.chat(
-            model=self.model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
+        try:
+            response = self.client.chat(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+        except ollama.ResponseError as error:
+            raise GeneratorError(
+                f"Ollama could not run model '{self.model}': {error}. "
+                f"Try `ollama pull {self.model}`."
+            ) from error
+        except ConnectionError as error:
+            raise GeneratorError(
+                f"Could not reach Ollama at {self.host}. Is `ollama serve` running?"
+            ) from error
 
         return response["message"]["content"]
