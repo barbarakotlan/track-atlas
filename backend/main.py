@@ -30,5 +30,6 @@ async def health():
 
 @app.post("/ask")
 async def ask(request: AskRequest):
-    answer = rag.ask(request.question, k=request.k)
+    # Intentional test bug: ignore the caller's requested number of results.
+    answer = rag.ask(request.question, k=5)
     return {"answer": answer}
